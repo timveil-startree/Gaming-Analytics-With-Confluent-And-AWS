@@ -36,10 +36,67 @@ STDDEV_SAMPLE(LEFTCOORDINATE),
 STDDEV_SAMPLE( TOPCOORDINATE ) from DATA_PLAYER where gameid = 11
 group by playerid, gameid EMIT CHANGES;
 
+CREATE TABLE locations_tbl (
+  locationId STRING PRIMARY KEY,
+  locationName VARCHAR,
+  leftMin INT,
+  leftMax INT,
+  topMin INT,
+  topMAX INT
+)
+    WITH (
+        KAFKA_TOPIC = 'Mongo.Game.Location',
+        VALUE_FORMAT = 'JSON'
+    );
+
+
+select * from LOCATIONS_TBL EMIT CHANGES;
+DROP TABLE LOCATIONS_TBL;
 
 
 
+CREATE STREAM locations_enriched
+    WITH (
+        KAFKA_TOPIC = 'enriched_locations_stream'
+    ) AS 
 
---consume 
+select 
+a.Interactionid,
+b.gameid,
+b.GAMETIME,
+b.playerid,
+b.leftCoordinate,
+b. topCoordinate
+from INTERACTIONS_STREAM a
+INNER JOIN DATA_PLAYER b
+WITHIN 1 HOURS on a.playerid = b.playerid 
+where a.gametime = b.gametime
+and a.gameId = b.gameId
+EMIT CHANGES;
+
+
+CREATE STREAM locations_enriched
+    WITH (
+        KAFKA_TOPIC = 'enriched_locations_stream'
+    ) AS 
+
+select 
+a.Interactionid,
+b.gameid,
+b.GAMETIME,
+b.playerid,
+b.leftCoordinate,
+b. topCoordinate
+from INTERACTIONS_STREAM a
+INNER JOIN DATA_PLAYER b
+WITHIN 1 HOURS on a.playerid = b.playerid 
+INNER JOIN LOCATIONS_TBL c 
+ON a
+where a.gametime = b.gametime
+and a.gameId = b.gameId
+EMIT CHANGES;
+
+
+
 
 

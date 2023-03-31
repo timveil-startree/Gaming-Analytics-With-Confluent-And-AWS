@@ -23,7 +23,7 @@ FPS = 60                # 30-90
 SHOWFPS = True         # show frame rate
 NUMBER_OF_CHEATERS = 5  # 
 BOID_SIZE = 25
-GAME_ID = 12
+GAME_ID = 13
 
 
 
@@ -264,25 +264,23 @@ def main():
         color = (255,0,0)
 
         #The Bridge
-        pg.draw.rect(screen, color,  pg.Rect(75, 375, 250, 75))
+        #pg.draw.rect(screen, color,  pg.Rect(75, 375, 250, 75))
 
         #Downtown
-        pg.draw.rect(screen, color,  pg.Rect(400, 100, 450, 300))
+        #pg.draw.rect(screen, color,  pg.Rect(400, 100, 450, 300))
 
         #Business District  
-        pg.draw.rect(screen, color,  pg.Rect(425, 500, 500, 300))
+        #pg.draw.rect(screen, color,  pg.Rect(425, 500, 500, 300))
 
         #Amiko Greens
-        pg.draw.rect(screen, color,  pg.Rect(1000, 350, 200, 500))
+        #pg.draw.rect(screen, color,  pg.Rect(1000, 350, 200, 500))
 
         #Glen Falls Division
-        pg.draw.rect(screen, color,  pg.Rect(1300, 0, 500, 500))
+        #pg.draw.rect(screen, color,  pg.Rect(1300, 0, 500, 500))
 
         #Kasama District
-        pg.draw.rect(screen, color,  pg.Rect(1300, 600, 500, 500))
-
-
-        pg.display.flip()
+        #pg.draw.rect(screen, color,  pg.Rect(1300, 600, 500, 500))
+        #pg.display.flip()
         nBoids.draw(screen)
         nBoids.sprites()[0].cheat(dt, SPEED, WRAP)
 
