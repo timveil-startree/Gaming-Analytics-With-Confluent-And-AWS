@@ -206,7 +206,7 @@ def main():
     pg.init()  # prepare window
     window = pg.display.set_caption("Demo Game")
     try: 
-        BOID_ICON = pg.image.load("nboids.png")
+        BOID_ICON = pg.image.load("assets/nboids.png")
         SCALED_BOID_ICON = pg.transform.scale(BOID_ICON, (BOID_SIZE, BOID_SIZE))
         
         pg.display.set_icon(SCALED_BOID_ICON)
@@ -257,7 +257,7 @@ def main():
         screen.fill(BGCOLOR)
         nBoids.update(dt, SPEED, WRAP)
 
-        background = pg.image.load("map.png")
+        background = pg.image.load("assets/map.png")
         background.set_alpha(225)
 
         screen.blit(background,(0,0))

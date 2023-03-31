@@ -10,23 +10,21 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 2. MongoDB account
 3. Workshop Time: ~ 45 min
 
-<br>
+
 
 # Setting Up Confluent Cloud
-1. Log into confluent.cloud
+1. Log into [confluent.cloud](https://confluent.cloud)
 2. Create a new environment
 3. Create a new cluster (basic cluster will be fine). Select us-east-2 for the region.
-4. Create Kafka API Keys
-5. Create a ksqlDB application
-6. Create an interactions topic
-7. Create player-position topic
+4. Create API Keys (also known as Kafka API Keys within Confluent Cloud). These will allow the local client to interact (sink and source data) with Confluent Cloud.
+5. Create a ksqlDB application. We will use this later for real-time transformations on the data that comes in.
+6. Create a new topic called `interactions`. Leave the partitions set to 6. This will be one of the places where data from the local client will land.
+7. Create a new topic called `player-position`. Leave the partitions set to 6. This will be one of the places where data from the local client will land.
 
 
-
-<br>
 
 # Setting Up MongoDB
-1. Login in to cloud.mongodb.com  
+1. Login in to [cloud.mongodb.com](https://cloud.mongodb.com)
 2. Add Network Access for Confluent Connector. This allows Confluent Cloud to source data from MongoDB Atlas.
 3. Create a Database Access user for MongoDB. Save the username/passwords as they will be used later on for the Confluent Cloud connector.
 4. Create a New MongoDB cluster. Dedicated or Shared will work. Select `us-east-2` for the region. Note: The MongoDB cluster and the Confluent Cloud cluster must be in the same region. 
@@ -113,7 +111,8 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 <br>
 
 # Run the Local Client
-1. Rename the file named `example-client.properties` to `client.properties` 
+## Setup
+1. Rename the file named `example-client.properties` to `client.properties`. This file will be used by the local client to push game data into Confluent Cloud.
 1. Fill out the the `client.properties` file for the following fields:
     ```
     bootstrap.servers
@@ -126,6 +125,8 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
     sasl.password: This is the Secret of your Kafka API keys you created earlier.
 
 1. Run the following command: `python3 run-game-simulation.py`
+
+## View the Incoming Messages
 1. Log into Confluent Cloud and navigate to your cluster for this workshop
 1. Navigate to the Topics section and click `player-position`
 1. Click the `Messages` tab. If you have everything properly configured, you will see messages flow into the topic
@@ -134,34 +135,38 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 
 
 # Real Time Transformation
-1. Go to the ksqlDB application
-2. Create streams 
-    ```
+With data flowing from the local game client into the Confluent Cloud, we will now perform real time transformations on the data as it comes in. Such transformations include joining data from multiple sources, filtering data by value, or routing data based on conditions. By doing so, we leverage the full potential of the once-siloed data to answer questions such as "which players are cheating?" or "where on the map are most players engaging?"
 
+In ksqlDB, you will see two entities. Tables and streams. View this [link](https://developer.confluent.io/learn-kafka/ksqldb/streams-and-tables/) to learn about the differences before moving foward. 
+
+1. Go to the ksqlDB application
+2. Create streams. These command take the Kafka topics and turn them into streams in ksqlDB. Think of this as bringing the data into ksqlDB in a form that can be manipulated in real-time.
+
+    ```
     CREATE STREAM player_data (
-    recordId INT,
-    gameId INT,
-    playerId INT,
-    gameTime INT,
-    topCoordinate INT,
-    leftCoordinate INT
+        recordId INT,
+        gameId INT,
+        playerId INT,
+        gameTime INT,
+        topCoordinate INT,
+        leftCoordinate INT
     )
-        WITH (
-            KAFKA_TOPIC = 'player-position',
-            VALUE_FORMAT = 'JSON'
-        );
+    WITH (
+        KAFKA_TOPIC = 'player-position',
+        VALUE_FORMAT = 'JSON'
+    );
 
 
     CREATE STREAM interactions_stream (
-    interactionId STRING,
-    gameId INT,
-    gameTime INT,
-    playerId INT
+        interactionId STRING,
+        gameId INT,
+        gameTime INT,
+        playerId INT
     )
-        WITH (
-            KAFKA_TOPIC = 'interactions',
-            VALUE_FORMAT = 'JSON'
-        );
+    WITH (
+        KAFKA_TOPIC = 'interactions',
+        VALUE_FORMAT = 'JSON'
+    );
     ```
     3. Create locations table
     ```
@@ -178,47 +183,45 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
             VALUE_FORMAT = 'JSON'
         );
     ```
-4. Create Enriched Streams
+4. **Create Enriched Streams.**  This is where we will start joining the data. Stream-to-stream, stream-to-table, and table-to-table.. 
     ```
     CREATE STREAM locations_enriched
         WITH (
             KAFKA_TOPIC = 'enriched_locations_stream'
         ) AS 
-
-    select 
-    a.Interactionid,
-    b.gameid,
-    b.GAMETIME,
-    b.playerid,
-    b.leftCoordinate,
-    b. topCoordinate
-    from INTERACTIONS_STREAM a
-    INNER JOIN DATA_PLAYER b
-    WITHIN 1 HOURS on a.playerid = b.playerid 
-    where a.gametime = b.gametime
-    and a.gameId = b.gameId
-    EMIT CHANGES;
+        select 
+        a.Interactionid,
+        b.gameid,
+        b.GAMETIME,
+        b.playerid,
+        b.leftCoordinate,
+        b. topCoordinate
+        from INTERACTIONS_STREAM a
+        INNER JOIN DATA_PLAYER b
+        WITHIN 1 HOURS on a.playerid = b.playerid 
+        where a.gametime = b.gametime
+        and a.gameId = b.gameId
+        EMIT CHANGES;
 
 
     CREATE STREAM locations_enriched
         WITH (
             KAFKA_TOPIC = 'enriched_locations_stream'
         ) AS 
-
-    select 
-    a.Interactionid,
-    b.gameid,
-    b.GAMETIME,
-    b.playerid,
-    b.leftCoordinate,
-    b. topCoordinate
-    from INTERACTIONS_STREAM a
-    INNER JOIN DATA_PLAYER b
-    WITHIN 1 HOURS on a.playerid = b.playerid 
-    INNER JOIN LOCATIONS_TBL c 
-    ON a
-    where a.gametime = b.gametime
-    and a.gameId = b.gameId
-    EMIT CHANGES;
+        select 
+        a.Interactionid,
+        b.gameid,
+        b.GAMETIME,
+        b.playerid,
+        b.leftCoordinate,
+        b. topCoordinate
+        from INTERACTIONS_STREAM a
+        INNER JOIN DATA_PLAYER b
+        WITHIN 1 HOURS on a.playerid = b.playerid 
+        INNER JOIN LOCATIONS_TBL c 
+        ON a
+        where a.gametime = b.gametime
+        and a.gameId = b.gameId
+        EMIT CHANGES;
     ```
 
