@@ -12,7 +12,7 @@ Uses numpy array math instead of math lib, more efficient.
 Copyright (c) 2021  Nikolaus Stromberg  nikorasu85@gmail.com
 '''
 FLLSCRN = True          # True for Fullscreen, or False for Window
-BOIDZ = 40            # How many boids to spawn, too many may slow fps
+BOIDZ = 100           # How many boids to spawn, too many may slow fps
 WRAP = False            # False avoids edges, True wraps to other side
 FISH = False            # True to turn boids into fish
 SPEED = 100             # Movement speed 170
@@ -23,7 +23,8 @@ FPS = 60                # 30-90
 SHOWFPS = True         # show frame rate
 NUMBER_OF_CHEATERS = 5  # 
 BOID_SIZE = 25
-GAME_ID = 13
+GAME_ID = 12
+PRODUCE = True
 
 
 
@@ -288,18 +289,23 @@ def main():
             for entity in nBoids:
                 #print(entity.bnum)
                 collides = pg.sprite.spritecollide(entity, nBoids, False)
-               
-                if len(collides) > 1:
+                
+                if len(collides) >= 2:
+                    #print(str(collides[0].bnum) + "collided with " + str(collides[1].bnum) + ": originating from " + str(entity.bnum))
                     id=str(uuid.uuid4())
+                    gameTime = pg.time.get_ticks()
                     interaction_data = {
                         "interactionId" : id,
                         "gameId" : GAME_ID,
                         "gameTime" : gameTime,
-                        "playerId" : str(entity.bnum)
+                        "sourcePlayerId" : str(entity.bnum),
+                        "player1Id": str(collides[0].bnum),
+                        "player2Id": str(collides[1].bnum)
                     }
                     #print(interaction_data)
                     interaction_data_json = json.dumps(interaction_data)  
-                    producer.produce("interactions", key=id, value=str(interaction_data_json))
+                    if PRODUCE == True:
+                        producer.produce("interactions", key=id, value=str(interaction_data_json))
                         
 
                 gameTime = pg.time.get_ticks()
@@ -313,10 +319,11 @@ def main():
                     "leftCoordinate": entity.rect.left,
                 }
                 player_data_json = json.dumps(player_data)
+
                 #print(player_data_json)
                 recordId = recordId + 1
-            
-                producer.produce("player-position", key=str(entity.bnum), value=str(player_data_json))
+                if PRODUCE == True:
+                    producer.produce("player-position", key=str(entity.bnum), value=str(player_data_json))
             
         
         if SHOWFPS : screen.blit(font.render(str(int(clock.get_fps())), True, [0,200,0]), (8, 8))
@@ -324,5 +331,5 @@ def main():
         pg.display.update()
 
 if __name__ == '__main__':
-    main()  # by Nik
+    main() 
     pg.quit()

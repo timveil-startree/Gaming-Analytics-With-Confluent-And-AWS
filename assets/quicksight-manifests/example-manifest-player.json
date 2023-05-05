@@ -1,0 +1,19 @@
+
+{
+    "fileLocations": [
+    
+        {
+            "URIPrefixes": [
+                "s3://{YOUR_BUCKET_NAME}/topics/enriched_player_stream/"
+               
+            ]
+        }
+    ],
+    "globalUploadSettings": {
+        "format": "JSON",
+        "delimiter": ",",
+        "textqualifier": "'",
+        "containsHeader": "true"
+    }
+}
+                            

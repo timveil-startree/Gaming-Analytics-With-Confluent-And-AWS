@@ -1,5 +1,6 @@
 client.properties
-
+quicksight-manifests/personal-manifests
+in-development-assets
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
