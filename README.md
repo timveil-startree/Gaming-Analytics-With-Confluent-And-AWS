@@ -7,23 +7,231 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 ![Architecture Diagram](assets/architecture.png)
 # Requirements
 1. Confluent Cloud account
-2. MongoDB account
-3. Workshop Time: ~ 45 min
+1. AWS Account with S3 and QuickSight permissions
+1. An S3 bucket
+1. Workshop Time: ~ 45 min
 
-
+# Optional 
+1. MongoDB Account
 
 # Setting Up Confluent Cloud
 1. Log into [confluent.cloud](https://confluent.cloud)
 2. Create a new environment
-3. Create a new cluster (basic cluster will be fine). Select us-east-2 for the region.
+3. Create a new Standard cluster. Select us-east-2 for the region.
 4. Create API Keys (also known as Kafka API Keys within Confluent Cloud). These will allow the local client to interact (sink and source data) with Confluent Cloud.
 5. Create a ksqlDB application. We will use this later for real-time transformations on the data that comes in.
 6. Create a new topic called `interactions`. Leave the partitions set to 6. This will be one of the places where data from the local client will land.
 7. Create a new topic called `player-position`. Leave the partitions set to 6. This will be one of the places where data from the local client will land.
 
 
+# Run the Local Client
+## Setup
+1. Rename the file named `example-client.properties` to `client.properties`. This file will be used by the local client to push game data into Confluent Cloud.
+1. Fill out the the `client.properties` file for the following fields:
+    ```
+    bootstrap.servers
+    sasl.username
+    sasl.password
+    ```
+    bootstrap.servers: to find this value, navigate to your cluster in Confluent Cloud. Find the cluster settings tab and find the `Bootstrap server` label.
 
-# Setting Up MongoDB
+    sasl.username: This is the Key of your Kafka API Keys you created earlier.
+    sasl.password: This is the Secret of your Kafka API keys you created earlier.
+
+1. Run the following command: `python3 run-game-simulation.py`
+
+## View the Incoming Messages
+1. Log into Confluent Cloud and navigate to your cluster for this workshop
+1. Navigate to the Topics section and click `player-position`
+1. Click the `Messages` tab. If you have everything properly configured, you will see messages flow into the topic
+1. You can choose to do the same with the `interactions` topics
+
+
+
+# Real Time Transformation
+With data flowing from the local game client into the Confluent Cloud, we will now perform real time transformations on the data as it comes in. Such transformations include joining data from multiple sources, filtering data by value, or routing data based on conditions. By doing so, we leverage the full potential of the once-siloed data to answer questions such as "which players are cheating?" or "where on the map are most players engaging?"
+
+In ksqlDB, you will see two entities. Tables and streams. View this [link](https://developer.confluent.io/learn-kafka/ksqldb/streams-and-tables/) to learn about the differences before moving foward. 
+
+1. Go to the ksqlDB application
+1. Create streams. These command take the Kafka topics and turn them into streams in ksqlDB. Think of this as bringing the data into ksqlDB in a form that can be manipulated in real-time.
+
+    ```
+    CREATE STREAM player_stream (
+        recordId INT,
+        gameId INT,
+        playerId INT,
+        gameTime INT,
+        topCoordinate INT,
+        leftCoordinate INT
+    )
+        WITH (
+            KAFKA_TOPIC = 'player-position',
+            VALUE_FORMAT = 'JSON'
+        );
+
+
+    CREATE STREAM interactions_stream (
+        interactionId STRING,
+        gameId INT,
+        gameTime INT,
+        sourcePlayerId INT,
+        player1Id INT,
+        player2Id INT
+
+    )
+        WITH (
+            KAFKA_TOPIC = 'interactions',
+            VALUE_FORMAT = 'JSON'
+        );
+
+    ```
+1. **Create Enriched Streams.**  This is where we will start joining the data. Stream-to-stream, stream-to-table, and table-to-table.. 
+
+The `enriched_interactions_stream` joins the interaction stream and the player stream. This provides the interaction with coordinates that identify where the engagement occurred on the map. Furthermore, the query utilizes a `CASE` statement to label sections of the map.
+
+    
+    CREATE STREAM enriched_interactions_stream WITH (
+        KAFKA_TOPIC = 'enriched_interactions_stream'
+    ) AS 
+
+    select 
+    a.Interactionid,
+    b.gameid as gameId,
+    b.GAMETIME as GameTime,
+    AS_VALUE(a.sourcePlayerId) as SourcePlayerId,
+    a.player1Id as orginatingPlayer,
+    a.player2Id as playerBeingEngaged,
+    b.playerid,
+    b.leftCoordinate,
+    b.topCoordinate,
+    CASE 
+        WHEN b.LEFTCOORDINATE > 75 AND b.LEFTCOORDINATE < 450 AND b.TOPCOORDINATE > 375 AND b.TOPCOORDINATE < 450 THEN 'The Bridge'
+        WHEN b.LEFTCOORDINATE > 400 AND b.LEFTCOORDINATE < 850 AND b.TOPCOORDINATE > 100 AND b.TOPCOORDINATE < 400 THEN 'Downtown'
+        WHEN b.LEFTCOORDINATE > 425 AND b.LEFTCOORDINATE < 925 AND b.TOPCOORDINATE > 500 AND b.TOPCOORDINATE < 800 THEN 'Business District'
+        WHEN b.LEFTCOORDINATE > 1000 AND b.LEFTCOORDINATE < 1200 AND b.TOPCOORDINATE > 200 AND b.TOPCOORDINATE < 850 THEN 'Amiko Greens'
+        WHEN b.LEFTCOORDINATE > 1300 AND b.LEFTCOORDINATE < 1800 AND b.TOPCOORDINATE > 0 AND b.TOPCOORDINATE < 500 THEN 'Glen Falls Division'
+        WHEN b.LEFTCOORDINATE > 1300 AND b.LEFTCOORDINATE < 1800 AND b.TOPCOORDINATE > 500 AND b.TOPCOORDINATE < 1100 THEN 'Kasama District'
+        ELSE 'Other'
+
+    END AS Location
+    from INTERACTIONS_STREAM a
+    INNER JOIN PLAYER_STREAM b
+    WITHIN 1 HOURS on a.sourcePlayerId = b.playerid 
+    where a.gametime = b.gametime
+    and a.gameId = b.gameId
+    EMIT CHANGES;
+    ```
+    
+The `enriched_player_stream`, much like the `enriched_interactions_stream`, creates reader-friendly labels for sections of coordinates.
+
+    ```
+        CREATE STREAM enriched_player_stream WITH (
+            KAFKA_TOPIC = 'enriched_player_stream'
+        )AS
+    SELECT *, 
+    CASE 
+        WHEN LEFTCOORDINATE > 75 AND LEFTCOORDINATE < 450 AND TOPCOORDINATE > 375 AND TOPCOORDINATE < 450 THEN 'The Bridge'
+        WHEN LEFTCOORDINATE > 400 AND LEFTCOORDINATE < 850 AND TOPCOORDINATE > 100 AND TOPCOORDINATE < 400 THEN 'Downtown'
+        WHEN LEFTCOORDINATE > 425 AND LEFTCOORDINATE < 925 AND TOPCOORDINATE > 500 AND TOPCOORDINATE < 800 THEN 'Business District'
+        WHEN LEFTCOORDINATE > 1000 AND LEFTCOORDINATE < 1200 AND TOPCOORDINATE > 200 AND TOPCOORDINATE < 850 THEN 'Amiko Greens'
+        WHEN LEFTCOORDINATE > 1300 AND LEFTCOORDINATE < 1800 AND TOPCOORDINATE > 0 AND TOPCOORDINATE < 500 THEN 'Glen Falls Division'
+        WHEN LEFTCOORDINATE > 1300 AND LEFTCOORDINATE < 1800 AND TOPCOORDINATE > 500 AND TOPCOORDINATE < 1100 THEN 'Kasama District'
+        ELSE 'Other'
+
+    END  AS Location
+    FROM  player_stream 
+    EMIT CHANGES;
+
+
+1. **Create Player Speed Stream.**  Get ready for some ksqlDB magic. We are going to calculate the speed of players. As you may remember, the way to do that is to divide the distance traveled by amount of time passed. This essentially requires us to be able to take records two at a time in order to calculate both the change in distance and change in time. However, that's not how streams work and the closest approach to use would be window hopping (which unfortunately does not work with graph coordinates). The following queries you are about to see is a stroke of genius. The first stream duplicates the `player_stream` with one exception: it reduces the recordId by 100. In the next CREATE STREAM statement, we will use this edited recordId to join with a player's previous record combining the current and previous positions into a single record.
+    ```   
+    CREATE STREAM PLAYER_STREAM_PREVIOUS_LOCATION WITH (
+            KAFKA_TOPIC = 'player_stream_previous_location'
+        ) AS
+        SELECT recordId - 100 as recordId,
+        gameId,
+        playerId,
+        gameTime as previousGametime,
+        topCoordinate as previousTopCoordinate,
+        leftCoordinate as previousLeftCoordinat
+        FROM  player_stream 
+            EMIT CHANGES;
+    ```
+    The following calculates the player's speed. The distance is calculated with the formula $\sqrt{(x<sub>1</sub>-x<sub>2</sub>)<sup>2</sup>+(y<sub>1</sub>-y<sub>2</sub>)<sup>2</sup>} and the coordinates from the current and previous player record. The delta of time is calculated from the current and previous record GameTime.
+    ```
+    CREATE STREAM player_speed WITH (
+            KAFKA_TOPIC = 'player_speed'
+        )AS
+        SELECT 
+        a.recordId as recordId,
+        a.gameId as gameId,
+        AS_VALUE(b.playerId) as playerId,
+        a.playerId,
+        a.gameTime as currentGameTime,
+        a.topCoordinate as currentTopCoordinate,
+        a.leftCoordinate as currentLeftCoordinate,
+    previousGametime, previousTopCoordinate, previousLeftCoordinate,
+    sqrt((leftCoordinate-previousLeftCoordinate)*(leftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate)) as distanceTraveled,
+    abs(sqrt((leftCoordinate-previousLeftCoordinate)*(leftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate))/(gameTime-previousGametime)*100) as speed
+    FROM  player_stream a
+        INNER JOIN player_stream_previous_location b
+        WITHIN 1 HOURS on a.playerid = b.playerid
+        where a.recordId = b.recordId
+        and a.gameId = b.gameId
+        
+    EMIT CHANGES;
+    ```
+
+# Sinking Prepared Data to S3
+## Prepare the S3 Bucket
+1. Navigate to your S3 bucket
+1. Edit the manifests found in the `quicksight-manifests`
+    - Rename the file by removing the `example-` prefix on each file 
+    - Replace the {YOUR_BUCKET_NAME} value with your bucketname
+1. Upload all 3 edited manifests to the root of the S3 bucket; one manifest for each stream we intend to sink to S3.
+
+## Deploy the Sink Connector
+1. Select the connector tab
+1. Click `+ Add Connector`
+1. Search for `Amazon S3 Sink`
+1. Select the following topics to be sinked to S3:
+    - enriched_interactions_stream
+    - enriched_player_stream
+    - player_speed
+1. Select New or Existing Kafka AI Keys (This allows your connector to interact with your Kafka Clusters)
+1. Input your AWS API keys as well as the name of the bucket you intend to use
+1. On the configuration page, use the following values:
+    - Input Kafka record value format: JSON
+    - Output message format: JSON
+    - Time interval: HOURLY
+1. Connector Sizing: 4
+1. Review and Launch
+
+## \[Optional\] Check Data in S3
+1. Navigate to your S3 bucket and ensure it contains the following paths:
+    - topics/enriched_interactions_stream/
+    - topics/enriched_player_stream/
+    - topics/player_speed/
+ 
+
+# Visual Data in QuickSight
+1. Navigate to QuickSight
+1. Go to the DataSet tab
+1. Click `New Dataset`
+1. Select the S3 option and use the following values to import data from S3 into QuickSight:
+    - Data Source Name: Player
+    - URL: s3://{YOUR_BUCKET_NAME_HERE}/manifest-player.json
+1. Create 2 more datasets using the same S3 option and the following values
+
+    - **Interactions Dataset**
+        - Data Source Name: Interactions
+        - URL: s3://aws-gameday-dev/manifest-interactions.json
+    - **Player Speed Dataset**
+        - Data Source Name: Player Speed
+        - URL: s3://aws-gameday-dev/manifest-player_speed.json
+
+# [Optional] Setting Up MongoDB
 1. Login in to [cloud.mongodb.com](https://cloud.mongodb.com)
 2. Add Network Access for Confluent Connector. This allows Confluent Cloud to source data from MongoDB Atlas.
 3. Create a Database Access user for MongoDB. Save the username/passwords as they will be used later on for the Confluent Cloud connector.
@@ -109,119 +317,3 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 1. Look at the messages within `Mongo.Game.Location`. Depending on timing, it may be easier to set the `Jump to offset` to 0. You should see data regarding the game locations and its range of coordinates
 
 <br>
-
-# Run the Local Client
-## Setup
-1. Rename the file named `example-client.properties` to `client.properties`. This file will be used by the local client to push game data into Confluent Cloud.
-1. Fill out the the `client.properties` file for the following fields:
-    ```
-    bootstrap.servers
-    sasl.username
-    sasl.password
-    ```
-    bootstrap.servers: to find this value, navigate to your cluster in Confluent Cloud. Find the cluster settings tab and find the `Bootstrap server` label.
-
-    sasl.username: This is the Key of your Kafka API Keys you created earlier.
-    sasl.password: This is the Secret of your Kafka API keys you created earlier.
-
-1. Run the following command: `python3 run-game-simulation.py`
-
-## View the Incoming Messages
-1. Log into Confluent Cloud and navigate to your cluster for this workshop
-1. Navigate to the Topics section and click `player-position`
-1. Click the `Messages` tab. If you have everything properly configured, you will see messages flow into the topic
-1. You can choose to do the same with the `interactions` topics
-
-
-
-# Real Time Transformation
-With data flowing from the local game client into the Confluent Cloud, we will now perform real time transformations on the data as it comes in. Such transformations include joining data from multiple sources, filtering data by value, or routing data based on conditions. By doing so, we leverage the full potential of the once-siloed data to answer questions such as "which players are cheating?" or "where on the map are most players engaging?"
-
-In ksqlDB, you will see two entities. Tables and streams. View this [link](https://developer.confluent.io/learn-kafka/ksqldb/streams-and-tables/) to learn about the differences before moving foward. 
-
-1. Go to the ksqlDB application
-2. Create streams. These command take the Kafka topics and turn them into streams in ksqlDB. Think of this as bringing the data into ksqlDB in a form that can be manipulated in real-time.
-
-    ```
-    CREATE STREAM player_data (
-        recordId INT,
-        gameId INT,
-        playerId INT,
-        gameTime INT,
-        topCoordinate INT,
-        leftCoordinate INT
-    )
-    WITH (
-        KAFKA_TOPIC = 'player-position',
-        VALUE_FORMAT = 'JSON'
-    );
-
-
-    CREATE STREAM interactions_stream (
-        interactionId STRING,
-        gameId INT,
-        gameTime INT,
-        playerId INT
-    )
-    WITH (
-        KAFKA_TOPIC = 'interactions',
-        VALUE_FORMAT = 'JSON'
-    );
-    ```
-    3. Create locations table
-    ```
-    CREATE TABLE locations_tbl (
-    locationId STRING PRIMARY KEY,
-    locationName VARCHAR,
-    leftMin INT,
-    leftMax INT,
-    topMin INT,
-    topMAX INT
-    )
-        WITH (
-            KAFKA_TOPIC = 'Mongo.Game.Location',
-            VALUE_FORMAT = 'JSON'
-        );
-    ```
-4. **Create Enriched Streams.**  This is where we will start joining the data. Stream-to-stream, stream-to-table, and table-to-table.. 
-    ```
-    CREATE STREAM locations_enriched
-        WITH (
-            KAFKA_TOPIC = 'enriched_locations_stream'
-        ) AS 
-        select 
-        a.Interactionid,
-        b.gameid,
-        b.GAMETIME,
-        b.playerid,
-        b.leftCoordinate,
-        b. topCoordinate
-        from INTERACTIONS_STREAM a
-        INNER JOIN DATA_PLAYER b
-        WITHIN 1 HOURS on a.playerid = b.playerid 
-        where a.gametime = b.gametime
-        and a.gameId = b.gameId
-        EMIT CHANGES;
-
-
-    CREATE STREAM locations_enriched
-        WITH (
-            KAFKA_TOPIC = 'enriched_locations_stream'
-        ) AS 
-        select 
-        a.Interactionid,
-        b.gameid,
-        b.GAMETIME,
-        b.playerid,
-        b.leftCoordinate,
-        b. topCoordinate
-        from INTERACTIONS_STREAM a
-        INNER JOIN DATA_PLAYER b
-        WITHIN 1 HOURS on a.playerid = b.playerid 
-        INNER JOIN LOCATIONS_TBL c 
-        ON a
-        where a.gametime = b.gametime
-        and a.gameId = b.gameId
-        EMIT CHANGES;
-    ```
-

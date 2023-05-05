@@ -27,11 +27,6 @@ CREATE STREAM interactions_stream (
     );
 
 
---Starting Positions
-select  TOPCOORDINATE , LEFTCOORDINATE  from DATA_PLAYER where gameid = 3 and recordId between 0 and 39 EMIT CHANGES;
-
-
-
 CREATE STREAM enriched_interactions_stream WITH (
         KAFKA_TOPIC = 'enriched_interactions_stream'
     ) AS 
@@ -83,8 +78,8 @@ CREATE STREAM enriched_player_stream WITH (
    EMIT CHANGES;
 
 
-CREATE STREAM PLAYER_STREAM_PREVIOUS_LOCATION WITH (
-        KAFKA_TOPIC = 'player_stream_previous_location'
+CREATE STREAM PLAYER_STREAM_current_location WITH (
+        KAFKA_TOPIC = 'player_stream_current_location'
     )AS
    SELECT recordId - 100 as recordId,
    gameId,
