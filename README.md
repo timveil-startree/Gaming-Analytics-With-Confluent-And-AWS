@@ -28,15 +28,9 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 ## Setup
 1. Rename the file named `example-client.properties` to `client.properties`. This file will be used by the local client to push game data into Confluent Cloud.
 1. Fill out the the `client.properties` file for the following fields:
-    ```
-    bootstrap.servers
-    sasl.username
-    sasl.password
-    ```
-    bootstrap.servers: to find this value, navigate to your cluster in Confluent Cloud. Find the cluster settings tab and find the `Bootstrap server` label.
-
-    sasl.username: This is the Key of your Kafka API Keys you created earlier.
-    sasl.password: This is the Secret of your Kafka API keys you created earlier.
+    - bootstrap.servers: to find this value, navigate to your cluster in Confluent Cloud. Find the cluster settings tab and find the `Bootstrap server` label.
+    - sasl.username: This is the Key of your Kafka API Keys you created earlier.
+    - sasl.password: This is the Secret of your Kafka API keys you created earlier.
 
 1. Run the following command: `python3 run-game-simulation.py`
 
@@ -45,6 +39,7 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 1. Navigate to the Topics section and click `player-position`
 1. Click the `Messages` tab. If you have everything properly configured, you will see messages flow into the topic
 1. You can choose to do the same with the `interactions` topics
+1. \[Optional\] Feel free to pause the python script from above while you work on the next section.
 
 
 
@@ -54,7 +49,7 @@ With data flowing from the local game client into the Confluent Cloud, we will n
 In ksqlDB, you will see two entities. Tables and streams. View this [link](https://developer.confluent.io/learn-kafka/ksqldb/streams-and-tables/) to learn about the differences before moving foward. 
 
 1. Go to the ksqlDB application
-1. Create streams. These command take the Kafka topics and turn them into streams in ksqlDB. Think of this as bringing the data into ksqlDB in a form that can be manipulated in real-time.
+1. **Create streams.** These command take the Kafka topics and turn them into streams in ksqlDB. Think of this as bringing the data into ksqlDB in a form that can be manipulated in real-time.
 
     ```
     CREATE STREAM player_stream (
@@ -86,9 +81,7 @@ In ksqlDB, you will see two entities. Tables and streams. View this [link](https
         );
 
     ```
-1. **Create Enriched Streams.**  This is where we will start joining the data. Stream-to-stream, stream-to-table, and table-to-table.. 
-
-The `enriched_interactions_stream` joins the interaction stream and the player stream. This provides the interaction with coordinates that identify where the engagement occurred on the map. Furthermore, the query utilizes a `CASE` statement to label sections of the map.
+1. **Create Enriched Streams.**  This is where we will start joining the data. The `enriched_interactions_stream` joins the interaction stream and the player stream. The output provides interaction records with coordinates that identify where the engagement occurred on the map. Furthermore, the query utilizes a `CASE` statement to label sections of the map.
 
     
     CREATE STREAM enriched_interactions_stream WITH (
@@ -123,7 +116,7 @@ The `enriched_interactions_stream` joins the interaction stream and the player s
     EMIT CHANGES;
     ```
     
-The `enriched_player_stream`, much like the `enriched_interactions_stream`, creates reader-friendly labels for sections of coordinates.
+The `enriched_player_stream`, much like the `enriched_interactions_stream`, creates reader-friendly labels for sections of coordinates. This stream provides where a coordinates and location of a player for a given point in time of the match (note: GameTime is number of milliseconds since the game simulation was initialized).
 
     ```
         CREATE STREAM enriched_player_stream WITH (
@@ -144,22 +137,24 @@ The `enriched_player_stream`, much like the `enriched_interactions_stream`, crea
     EMIT CHANGES;
 
 
-1. **Create Player Speed Stream.**  Get ready for some ksqlDB magic. We are going to calculate the speed of players. As you may remember, the way to do that is to divide the distance traveled by amount of time passed. This essentially requires us to be able to take records two at a time in order to calculate both the change in distance and change in time. However, that's not how streams work and the closest approach to use would be window hopping (which unfortunately does not work with graph coordinates). The following queries you are about to see is a stroke of genius. The first stream duplicates the `player_stream` with one exception: it reduces the recordId by 100. In the next CREATE STREAM statement, we will use this edited recordId to join with a player's previous record combining the current and previous positions into a single record.
+1. **Create Player Speed Stream.**  Get ready for some ksqlDB magic. We are going to calculate the speed of players. As you may remember, the way to do that is to divide the distance traveled by amount of time passed. This essentially requires us to be able to take records two at a time in order to calculate both the change in distance and change in time. The following queries you are about to see is a stroke of genius as they do just that. The first stream duplicates the `player_stream` with one exception: it reduces the recordId by 100. We will use this edited recordId to join with a player's previous record combining the current and previous positions into a single record.
     ```   
-    CREATE STREAM PLAYER_STREAM_PREVIOUS_LOCATION WITH (
-            KAFKA_TOPIC = 'player_stream_previous_location'
-        ) AS
-        SELECT recordId - 100 as recordId,
-        gameId,
-        playerId,
-        gameTime as previousGametime,
-        topCoordinate as previousTopCoordinate,
-        leftCoordinate as previousLeftCoordinat
-        FROM  player_stream 
-            EMIT CHANGES;
+    CREATE STREAM PLAYER_STREAM_current_location WITH (
+            KAFKA_TOPIC = 'player_stream_current_location'
+        )AS
+    SELECT recordId - 100 as recordId,
+    gameId,
+    playerId,
+    gameTime as currentGameTime,
+    topCoordinate as currentTopCoordinate,
+    leftCoordinate as currentLeftCoordinate
+
+    FROM  player_stream 
+        EMIT CHANGES;
     ```
-    The following calculates the player's speed. The distance is calculated with the formula $\sqrt{(x<sub>1</sub>-x<sub>2</sub>)<sup>2</sup>+(y<sub>1</sub>-y<sub>2</sub>)<sup>2</sup>} and the coordinates from the current and previous player record. The delta of time is calculated from the current and previous record GameTime.
+    The following calculates the player's speed. The distance is calculated with the formula $\sqrt{(x<sub>1</sub>-x<sub>2</sub>)<sup>2</sup>+(y<sub>1</sub>-y<sub>2</sub>)<sup>2</sup>} and the coordinates from the current and previous player record. The delta of time is calculated from the current and previous record GameTime. Note: This is how we will be able to identify if there are any cheaters; if there is a player moving faster than others, we have good reason to suspet cheating.
     ```
+        
     CREATE STREAM player_speed WITH (
             KAFKA_TOPIC = 'player_speed'
         )AS
@@ -168,20 +163,38 @@ The `enriched_player_stream`, much like the `enriched_interactions_stream`, crea
         a.gameId as gameId,
         AS_VALUE(b.playerId) as playerId,
         a.playerId,
-        a.gameTime as currentGameTime,
-        a.topCoordinate as currentTopCoordinate,
-        a.leftCoordinate as currentLeftCoordinate,
-    previousGametime, previousTopCoordinate, previousLeftCoordinate,
-    sqrt((leftCoordinate-previousLeftCoordinate)*(leftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate)) as distanceTraveled,
+        a.gameTime as previousGametime,
+        a.topCoordinate as previousTopCoordinate,
+        a.leftCoordinate as previousLeftCoordinate,
+    currentGameTime, currentTopCoordinate, currentLeftCoordinate,
+    sqrt((currentLeftCoordinate-previousLeftCoordinate)*(currentLeftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate)) as distanceTraveled,
     abs(sqrt((leftCoordinate-previousLeftCoordinate)*(leftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate))/(gameTime-previousGametime)*100) as speed
     FROM  player_stream a
-        INNER JOIN player_stream_previous_location b
+        INNER JOIN player_stream_current_location b
         WITHIN 1 HOURS on a.playerid = b.playerid
         where a.recordId = b.recordId
         and a.gameId = b.gameId
         
     EMIT CHANGES;
     ```
+## Watch the data transform in real time
+1. Start up the `run-game-simulation.py` again if you had stopped it earlier. 
+1. Navigate to ksqlDB and run the following query:
+    ```
+    select * from player_speed;
+    ```
+    The data will appear below the query window. Feel free explore the newly transformed messages.
+1. Stop the above query then run the next query:
+    ```
+    select * from enriched_player_stream;
+    ```
+1. Stop the previous query and run this final statement:
+    ```
+    select * from enriched_interactions_stream; 
+    ```
+1. With each of these statements, remember that this data is being transformed in real time. Your data is ready for use by downstream systems before it even gets there. 
+
+
 
 # Sinking Prepared Data to S3
 ## Prepare the S3 Bucket
@@ -216,6 +229,7 @@ The `enriched_player_stream`, much like the `enriched_interactions_stream`, crea
  
 
 # Visual Data in QuickSight
+## Setup
 1. Navigate to QuickSight
 1. Go to the DataSet tab
 1. Click `New Dataset`
@@ -230,6 +244,31 @@ The `enriched_player_stream`, much like the `enriched_interactions_stream`, crea
     - **Player Speed Dataset**
         - Data Source Name: Player Speed
         - URL: s3://aws-gameday-dev/manifest-player_speed.json
+## Create the Analysis
+1. Navigate to QuickSight
+1. Create a New Analysis
+1. Click the `Player` Dataset
+1. Click `Use in Analysis`
+1. Click the Edit button near the Dataset.
+    
+    ![Edit Dataset](assets/quicksight-edit-dataset.png)
+1. Add the other two datasets: `Interactions` and `Player Speed`
+1. Use the screenshots below to create the visuals for yourself.
+    
+    **Initial Spawn Visual.** This answers the question "Where are most players spawning at the beginning of the game? Do we need to consider a different distribution"
+    ![Intial Spawn Visual](assets/initial-spawn.png)
+
+    **Average Speed Visual.** This helps identify if there are players moving faster than others (and indicator of cheating). As you can see in this visual and our dataset, Player 0 is moving 6x faster than other players.
+    ![Average Speed Visual](assets/average-speed.png)
+
+    **Most Interactions.** This answers the question "Which players interact the most with other players?". This can help create player "style profiles" where in developers can understand players based on their style of play. It can also be a core component in matchmaking. The more interactions, the better the player. Players with interactions much higher than those in the same match problably need to be allocated to a batch of players that are on the same level.
+    ![Most Interactions](assets/most-ineractions.png)
+
+    **Locations Visual.** This answers the question "Where are most player throughout the game?" For example, we can see that towards the end game of the match, most players were in the Business District and Other. Alternatively, at the beginning of the match, most players were at Amiko Greens.
+
+    ![Location Visual](assets/player-time-by-location.png)
+    
+
 
 # [Optional] Setting Up MongoDB
 1. Login in to [cloud.mongodb.com](https://cloud.mongodb.com)

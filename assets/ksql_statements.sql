@@ -84,9 +84,9 @@ CREATE STREAM PLAYER_STREAM_current_location WITH (
    SELECT recordId - 100 as recordId,
    gameId,
   playerId,
-  gameTime as previousGametime,
-  topCoordinate as previousTopCoordinate,
-  leftCoordinate as previousLeftCoordinate
+  gameTime as currentGameTime,
+  topCoordinate as currentTopCoordinate,
+  leftCoordinate as currentLeftCoordinate
 
    FROM  player_stream 
     EMIT CHANGES;
@@ -100,14 +100,14 @@ CREATE STREAM player_speed WITH (
     a.gameId as gameId,
     AS_VALUE(b.playerId) as playerId,
     a.playerId,
-    a.gameTime as currentGameTime,
-    a.topCoordinate as currentTopCoordinate,
-    a.leftCoordinate as currentLeftCoordinate,
-   previousGametime, previousTopCoordinate, previousLeftCoordinate,
-   sqrt((leftCoordinate-previousLeftCoordinate)*(leftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate)) as distanceTraveled,
+    a.gameTime as previousGametime,
+    a.topCoordinate as previousTopCoordinate,
+    a.leftCoordinate as previousLeftCoordinate,
+   currentGameTime, currentTopCoordinate, currentLeftCoordinate,
+   sqrt((currentLeftCoordinate-previousLeftCoordinate)*(currentLeftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate)) as distanceTraveled,
    abs(sqrt((leftCoordinate-previousLeftCoordinate)*(leftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate))/(gameTime-previousGametime)*100) as speed
    FROM  player_stream a
-    INNER JOIN player_stream_previous_location b
+    INNER JOIN player_stream_current_location b
     WITHIN 1 HOURS on a.playerid = b.playerid
     where a.recordId = b.recordId
     and a.gameId = b.gameId
@@ -115,9 +115,9 @@ CREATE STREAM player_speed WITH (
 EMIT CHANGES;
 
 
-
-
-
+select * from player_speed;
+select * from enriched_player_stream;
+select * from enriched_interactions_stream;
 
 drop stream player_speed;
 drop stream PLAYER_STREAM_PREVIOUS_LOCATION;
