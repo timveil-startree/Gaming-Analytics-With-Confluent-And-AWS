@@ -135,7 +135,6 @@ In ksqlDB, you will see two entities. Tables and streams. View this [link](https
             END  AS Location
             FROM  player_stream 
             EMIT CHANGES;
-        ```
 
 1. **Create Player Speed Stream.**  Get ready for some ksqlDB magic. We are going to calculate the speed of players. As you may remember, the way to do that is to divide the distance traveled by amount of time passed. This essentially requires us to be able to take records two at a time in order to calculate both the change in distance and change in time. The following queries you are about to see is a stroke of genius as they do just that. The first stream duplicates the `player_stream` with one exception: it reduces the recordId by 100. We will use this edited recordId to join with a player's previous record combining the current and previous positions into a single record.
     ```   
