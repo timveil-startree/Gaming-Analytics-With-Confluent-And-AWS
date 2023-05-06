@@ -117,7 +117,8 @@ In ksqlDB, you will see two entities. Tables and streams. View this [link](https
     EMIT CHANGES;
     ```
     
-The `enriched_player_stream`, much like the `enriched_interactions_stream`, creates reader-friendly labels for sections of coordinates. This stream provides where a coordinates and location of a player for a given point in time of the match (note: GameTime is number of milliseconds since the game simulation was initialized).
+    The `enriched_player_stream`, much like the `enriched_interactions_stream`, creates reader-friendly labels for sections of coordinates. This stream provides where a coordinates and location of a player for a given point in time of the match (note: GameTime is number of milliseconds since the game simulation was initialized).
+
 
     CREATE STREAM enriched_player_stream WITH (
                 KAFKA_TOPIC = 'enriched_player_stream'
