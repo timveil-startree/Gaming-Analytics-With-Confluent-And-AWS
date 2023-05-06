@@ -38,6 +38,7 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 1. Log into Confluent Cloud and navigate to your cluster for this workshop
 1. Navigate to the Topics section and click `player-position`
 1. Click the `Messages` tab. If you have everything properly configured, you will see messages flow into the topic
+![](assets/topic-throughput-check.png)
 1. You can choose to do the same with the `interactions` topics
 1. \[Optional\] Feel free to pause the python script from above while you work on the next section.
 
@@ -82,7 +83,7 @@ In ksqlDB, you will see two entities. Tables and streams. View this [link](https
 
     ```
 1. **Create Enriched Streams.**  This is where we will start joining the data. The `enriched_interactions_stream` joins the interaction stream and the player stream. The output provides interaction records with coordinates that identify where the engagement occurred on the map. Furthermore, the query utilizes a `CASE` statement to label sections of the map.
-
+    ```
     
     CREATE STREAM enriched_interactions_stream WITH (
         KAFKA_TOPIC = 'enriched_interactions_stream'
@@ -118,24 +119,22 @@ In ksqlDB, you will see two entities. Tables and streams. View this [link](https
     
 The `enriched_player_stream`, much like the `enriched_interactions_stream`, creates reader-friendly labels for sections of coordinates. This stream provides where a coordinates and location of a player for a given point in time of the match (note: GameTime is number of milliseconds since the game simulation was initialized).
 
-    ```
-        CREATE STREAM enriched_player_stream WITH (
-            KAFKA_TOPIC = 'enriched_player_stream'
-        )AS
+    CREATE STREAM enriched_player_stream WITH (
+                KAFKA_TOPIC = 'enriched_player_stream'
+            )AS
     SELECT *, 
-    CASE 
-        WHEN LEFTCOORDINATE > 75 AND LEFTCOORDINATE < 450 AND TOPCOORDINATE > 375 AND TOPCOORDINATE < 450 THEN 'The Bridge'
-        WHEN LEFTCOORDINATE > 400 AND LEFTCOORDINATE < 850 AND TOPCOORDINATE > 100 AND TOPCOORDINATE < 400 THEN 'Downtown'
-        WHEN LEFTCOORDINATE > 425 AND LEFTCOORDINATE < 925 AND TOPCOORDINATE > 500 AND TOPCOORDINATE < 800 THEN 'Business District'
-        WHEN LEFTCOORDINATE > 1000 AND LEFTCOORDINATE < 1200 AND TOPCOORDINATE > 200 AND TOPCOORDINATE < 850 THEN 'Amiko Greens'
-        WHEN LEFTCOORDINATE > 1300 AND LEFTCOORDINATE < 1800 AND TOPCOORDINATE > 0 AND TOPCOORDINATE < 500 THEN 'Glen Falls Division'
-        WHEN LEFTCOORDINATE > 1300 AND LEFTCOORDINATE < 1800 AND TOPCOORDINATE > 500 AND TOPCOORDINATE < 1100 THEN 'Kasama District'
-        ELSE 'Other'
+        CASE 
+            WHEN LEFTCOORDINATE > 75 AND LEFTCOORDINATE < 450 AND TOPCOORDINATE > 375 AND TOPCOORDINATE < 450 THEN 'The Bridge'
+            WHEN LEFTCOORDINATE > 400 AND LEFTCOORDINATE < 850 AND TOPCOORDINATE > 100 AND TOPCOORDINATE < 400 THEN 'Downtown'
+            WHEN LEFTCOORDINATE > 425 AND LEFTCOORDINATE < 925 AND TOPCOORDINATE > 500 AND TOPCOORDINATE < 800 THEN 'Business District'
+            WHEN LEFTCOORDINATE > 1000 AND LEFTCOORDINATE < 1200 AND TOPCOORDINATE > 200 AND TOPCOORDINATE < 850 THEN 'Amiko Greens'
+            WHEN LEFTCOORDINATE > 1300 AND LEFTCOORDINATE < 1800 AND TOPCOORDINATE > 0 AND TOPCOORDINATE < 500 THEN 'Glen Falls Division'
+            WHEN LEFTCOORDINATE > 1300 AND LEFTCOORDINATE < 1800 AND TOPCOORDINATE > 500 AND TOPCOORDINATE < 1100 THEN 'Kasama District'
+            ELSE 'Other'
 
-    END  AS Location
-    FROM  player_stream 
-    EMIT CHANGES;
-
+        END  AS Location
+        FROM  player_stream 
+        EMIT CHANGES;
 
 1. **Create Player Speed Stream.**  Get ready for some ksqlDB magic. We are going to calculate the speed of players. As you may remember, the way to do that is to divide the distance traveled by amount of time passed. This essentially requires us to be able to take records two at a time in order to calculate both the change in distance and change in time. The following queries you are about to see is a stroke of genius as they do just that. The first stream duplicates the `player_stream` with one exception: it reduces the recordId by 100. We will use this edited recordId to join with a player's previous record combining the current and previous positions into a single record.
     ```   
@@ -183,7 +182,9 @@ The `enriched_player_stream`, much like the `enriched_interactions_stream`, crea
     ```
     select * from player_speed;
     ```
+    
     The data will appear below the query window. Feel free explore the newly transformed messages.
+    ![](assets/ksql-throughput-check.png)
 1. Stop the above query then run the next query:
     ```
     select * from enriched_player_stream;

@@ -23,7 +23,7 @@ FPS = 60                # 30-90
 SHOWFPS = True         # show frame rate
 NUMBER_OF_CHEATERS = 5  # 
 BOID_SIZE = 25
-GAME_ID = 12
+GAME_ID = 13
 PRODUCE = True
 
 
