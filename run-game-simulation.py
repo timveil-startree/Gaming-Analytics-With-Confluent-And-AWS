@@ -6,11 +6,7 @@ from confluent_kafka import Producer, Consumer
 import json
 import uuid
 import time
-'''
-PyNBoids - a Boids simulation - github.com/Nikorasu/PyNBoids
-Uses numpy array math instead of math lib, more efficient.
-Copyright (c) 2021  Nikolaus Stromberg  nikorasu85@gmail.com
-'''
+
 FLLSCRN = True          # True for Fullscreen, or False for Window
 BOIDZ = 100           # How many boids to spawn, too many may slow fps
 WRAP = False            # False avoids edges, True wraps to other side
@@ -302,7 +298,7 @@ def main():
                         "player1Id": str(collides[0].bnum),
                         "player2Id": str(collides[1].bnum)
                     }
-                    #print(interaction_data)
+                    print(interaction_data)
                     interaction_data_json = json.dumps(interaction_data)  
                     if PRODUCE == True:
                         producer.produce("interactions", key=id, value=str(interaction_data_json))
