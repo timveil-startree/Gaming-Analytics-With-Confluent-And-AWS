@@ -155,8 +155,8 @@ In ksqlDB, you will see two entities. Tables and streams. View this [link](https
     ```
         
     CREATE STREAM player_speed WITH (
-            KAFKA_TOPIC = 'player_speed'
-        )AS
+        KAFKA_TOPIC = 'player_speed'
+    )AS
         SELECT 
         a.recordId as recordId,
         a.gameId as gameId,
@@ -166,10 +166,10 @@ In ksqlDB, you will see two entities. Tables and streams. View this [link](https
         a.topCoordinate as previousTopCoordinate,
         a.leftCoordinate as previousLeftCoordinate,
     currentGameTime, currentTopCoordinate, currentLeftCoordinate,
-    sqrt((currentLeftCoordinate-previousLeftCoordinate)*(currentLeftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate)) as distanceTraveled,
-    abs(sqrt((leftCoordinate-previousLeftCoordinate)*(leftCoordinate-previousLeftCoordinate)+(topCoordinate-previousTopCoordinate)*(topCoordinate-previousTopCoordinate))/(gameTime-previousGametime)*100) as speed
+    sqrt((currentLeftCoordinate-a.leftCoordinate)*(currentLeftCoordinate-a.leftCoordinate)+(currentTopCoordinate-a.topCoordinate)*(currentTopCoordinate-a.topCoordinate)) as distanceTraveled,
+    abs(sqrt((currentLeftCoordinate-a.leftCoordinate)*(currentLeftCoordinate-a.leftCoordinate)+(currentTopCoordinate-a.topCoordinate)*(currentTopCoordinate-a.topCoordinate))/(currentGameTime-a.gameTime)*100) as speed
     FROM  player_stream a
-        INNER JOIN player_stream_current_location b
+        RIGHT JOIN player_stream_current_location b
         WITHIN 1 HOURS on a.playerid = b.playerid
         where a.recordId = b.recordId
         and a.gameId = b.gameId
