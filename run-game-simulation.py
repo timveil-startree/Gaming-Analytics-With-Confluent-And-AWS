@@ -8,7 +8,7 @@ import uuid
 import time
 
 FLLSCRN = True          # True for Fullscreen, or False for Window
-BOIDZ = 100           # How many boids to spawn, too many may slow fps
+BOIDZ = 25              # How many boids to spawn, too many may slow fps
 WRAP = False            # False avoids edges, True wraps to other side
 FISH = False            # True to turn boids into fish
 SPEED = 100             # Movement speed 170
@@ -16,7 +16,7 @@ WIDTH = 1200            # Window Width (1200)
 HEIGHT = 800            # Window Height (800)
 BGCOLOR = (0, 0, 0)     # Background color in RGB
 FPS = 60                # 30-90
-SHOWFPS = True         # show frame rate
+SHOWFPS = True          # show frame rate
 NUMBER_OF_CHEATERS = 5  # 
 BOID_SIZE = 25
 GAME_ID = 13
@@ -325,6 +325,7 @@ def main():
         if SHOWFPS : screen.blit(font.render(str(int(clock.get_fps())), True, [0,200,0]), (8, 8))
         
         pg.display.update()
+        producer.flush()
 
 if __name__ == '__main__':
     main() 
