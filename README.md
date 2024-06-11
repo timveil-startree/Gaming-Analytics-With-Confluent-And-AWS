@@ -39,65 +39,68 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 # Real Time Transformation
 With data flowing from the local game client into the Confluent Cloud, we will now perform real time transformations on the data as it comes in. Such transformations include joining data from multiple sources, filtering data by value, or routing data based on conditions. By doing so, we leverage the full potential of the once-siloed data to answer questions such as "which players are cheating?" or "where on the map are most players engaging?"
 
-1. **Query 1 - Enriched Interactions** This sql joins the `interactions` table/topic and the `player_position` table/toic. The output provides interaction records with coordinates that identify where the engagement occurred on the map. Furthermore, the query utilizes a `CASE` statement to label sections of the map.
-   ```postgresql
-   select a.interactionId,
-          b.gameId         as gameId,
-          b.gameTime       as gameTime,
-          a.sourcePlayerId as sourcePlayerId,
-          a.player1Id      as orginatingPlayer,
-          a.player2Id      as playerBeingEngaged,
-          b.playerId,
-          b.leftCoordinate,
-          b.topCoordinate,
-          CASE
-             WHEN b.leftCoordinate > 75 AND b.leftCoordinate < 450 AND b.topCoordinate > 375 AND b.topCoordinate < 450 THEN 'The Bridge'
-             WHEN b.leftCoordinate > 400 AND b.leftCoordinate < 850 AND b.topCoordinate > 100 AND b.topCoordinate < 400 THEN 'Downtown'
-             WHEN b.leftCoordinate > 425 AND b.leftCoordinate < 925 AND b.topCoordinate > 500 AND b.topCoordinate < 800 THEN 'Business District'
-             WHEN b.leftCoordinate > 1000 AND b.leftCoordinate < 1200 AND b.topCoordinate > 200 AND b.topCoordinate < 850 THEN 'Amiko Greens'
-             WHEN b.leftCoordinate > 1300 AND b.leftCoordinate < 1800 AND b.topCoordinate > 0 AND b.topCoordinate < 500 THEN 'Glen Falls Division'
-             WHEN b.leftCoordinate > 1300 AND b.leftCoordinate < 1800 AND b.topCoordinate > 500 AND b.topCoordinate < 1100 THEN 'Kasama District'
-             ELSE 'Other'
-             END          AS Location
-   from interactions a
-           INNER JOIN player_position b
-                      on a.sourcePlayerId = b.playerId
-   where a.gameTime = b.gameTime
-     and a.gameId = b.gameId
-   ```
-1. **Query 2 - Enriched Player Position** This sql creates reader-friendly labels for sections of coordinates. The stream provides where a coordinates and location of a player for a given point in time of the match (note: GameTime is number of milliseconds since the game simulation was initialized).
-   ```postgresql
-   SELECT *,
-          CASE
-             WHEN leftCoordinate > 75 AND leftCoordinate < 450 AND topCoordinate > 375 AND topCoordinate < 450 THEN 'The Bridge'
-             WHEN leftCoordinate > 400 AND leftCoordinate < 850 AND topCoordinate > 100 AND topCoordinate < 400 THEN 'Downtown'
-             WHEN leftCoordinate > 425 AND leftCoordinate < 925 AND topCoordinate > 500 AND topCoordinate < 800 THEN 'Business District'
-             WHEN leftCoordinate > 1000 AND leftCoordinate < 1200 AND topCoordinate > 200 AND topCoordinate < 850 THEN 'Amiko Greens'
-             WHEN leftCoordinate > 1300 AND leftCoordinate < 1800 AND topCoordinate > 0 AND topCoordinate < 500 THEN 'Glen Falls Division'
-             WHEN leftCoordinate > 1300 AND leftCoordinate < 1800 AND topCoordinate > 500 AND topCoordinate < 1100 THEN 'Kasama District'
-             ELSE 'Other'
-             END AS Location
-   FROM player_position
-   ```
-1. **Query 3 - Player Speed**   The following calculates the player's speed. As you may remember, the way to do that is to divide the distance traveled by amount of time passed. The distance is calculated with the formula $\sqrt{(x<sub>1</sub>-x<sub>2</sub>)<sup>2</sup>+(y<sub>1</sub>-y<sub>2</sub>)<sup>2</sup>} and the coordinates from the current and previous player record. The delta of time is calculated from the current and previous record GameTime. Note: This is how we will be able to identify if there are any cheaters; if there is a player moving faster than others, we have good reason to suspect cheating.
-   ```postgresql
-   SELECT a.recordId as recordId,
-          a.gameId as gameId,
-          a.playerId as playerId,
-          a.gameTime as previousGametime,
-          a.topCoordinate as previousTopCoordinate,
-          a.leftCoordinate as previousLeftCoordinate,
-          b.gameTime as currentGameTime,
-          b.topCoordinate as currentTopCoordinate,
-          b.leftCoordinate as currentLeftCoordinate,
-          sqrt((b.leftCoordinate - a.leftCoordinate) * (b.leftCoordinate - a.leftCoordinate) + (b.topCoordinate - a.topCoordinate) * (b.topCoordinate - a.topCoordinate)) as distanceTraveled,
-          abs(sqrt((b.leftCoordinate - a.leftCoordinate) * (b.leftCoordinate - a.leftCoordinate) + (b.topCoordinate - a.topCoordinate) * (b.topCoordinate - a.topCoordinate)) / (b.gameTime - a.gameTime) * 100) as speed
-   FROM player_position a
-            RIGHT JOIN player_position b
-                       on a.playerId = b.playerId
-   where a.recordId = b.recordId - 100
-     and a.gameId = b.gameId
-   ```
+## Query 1 - Enriched Interactions
+This sql joins the `interactions` table/topic and the `player_position` table/toic. The output provides interaction records with coordinates that identify where the engagement occurred on the map. Furthermore, the query utilizes a `CASE` statement to label sections of the map.
+```postgresql
+select a.interactionId,
+       b.gameId         as gameId,
+       b.gameTime       as gameTime,
+       a.sourcePlayerId as sourcePlayerId,
+       a.player1Id      as orginatingPlayer,
+       a.player2Id      as playerBeingEngaged,
+       b.playerId,
+       b.leftCoordinate,
+       b.topCoordinate,
+       CASE
+          WHEN b.leftCoordinate > 75 AND b.leftCoordinate < 450 AND b.topCoordinate > 375 AND b.topCoordinate < 450 THEN 'The Bridge'
+          WHEN b.leftCoordinate > 400 AND b.leftCoordinate < 850 AND b.topCoordinate > 100 AND b.topCoordinate < 400 THEN 'Downtown'
+          WHEN b.leftCoordinate > 425 AND b.leftCoordinate < 925 AND b.topCoordinate > 500 AND b.topCoordinate < 800 THEN 'Business District'
+          WHEN b.leftCoordinate > 1000 AND b.leftCoordinate < 1200 AND b.topCoordinate > 200 AND b.topCoordinate < 850 THEN 'Amiko Greens'
+          WHEN b.leftCoordinate > 1300 AND b.leftCoordinate < 1800 AND b.topCoordinate > 0 AND b.topCoordinate < 500 THEN 'Glen Falls Division'
+          WHEN b.leftCoordinate > 1300 AND b.leftCoordinate < 1800 AND b.topCoordinate > 500 AND b.topCoordinate < 1100 THEN 'Kasama District'
+          ELSE 'Other'
+          END          AS Location
+from interactions a
+        INNER JOIN player_position b
+                   on a.sourcePlayerId = b.playerId
+where a.gameTime = b.gameTime
+  and a.gameId = b.gameId
+```
+## Query 2 - Enriched Player Position
+This sql creates reader-friendly labels for sections of coordinates. The stream provides where a coordinates and location of a player for a given point in time of the match (note: GameTime is number of milliseconds since the game simulation was initialized).
+```postgresql
+SELECT *,
+       CASE
+          WHEN leftCoordinate > 75 AND leftCoordinate < 450 AND topCoordinate > 375 AND topCoordinate < 450 THEN 'The Bridge'
+          WHEN leftCoordinate > 400 AND leftCoordinate < 850 AND topCoordinate > 100 AND topCoordinate < 400 THEN 'Downtown'
+          WHEN leftCoordinate > 425 AND leftCoordinate < 925 AND topCoordinate > 500 AND topCoordinate < 800 THEN 'Business District'
+          WHEN leftCoordinate > 1000 AND leftCoordinate < 1200 AND topCoordinate > 200 AND topCoordinate < 850 THEN 'Amiko Greens'
+          WHEN leftCoordinate > 1300 AND leftCoordinate < 1800 AND topCoordinate > 0 AND topCoordinate < 500 THEN 'Glen Falls Division'
+          WHEN leftCoordinate > 1300 AND leftCoordinate < 1800 AND topCoordinate > 500 AND topCoordinate < 1100 THEN 'Kasama District'
+          ELSE 'Other'
+          END AS Location
+FROM player_position
+```
+## Query 3 - Player Speed
+The following calculates the player's speed. As you may remember, the way to do that is to divide the distance traveled by amount of time passed. The distance is calculated with the formula $\sqrt{(x<sub>1</sub>-x<sub>2</sub>)<sup>2</sup>+(y<sub>1</sub>-y<sub>2</sub>)<sup>2</sup>} and the coordinates from the current and previous player record. The delta of time is calculated from the current and previous record GameTime. Note: This is how we will be able to identify if there are any cheaters; if there is a player moving faster than others, we have good reason to suspect cheating.
+```postgresql
+SELECT a.recordId as recordId,
+       a.gameId as gameId,
+       a.playerId as playerId,
+       a.gameTime as previousGametime,
+       a.topCoordinate as previousTopCoordinate,
+       a.leftCoordinate as previousLeftCoordinate,
+       b.gameTime as currentGameTime,
+       b.topCoordinate as currentTopCoordinate,
+       b.leftCoordinate as currentLeftCoordinate,
+       sqrt((b.leftCoordinate - a.leftCoordinate) * (b.leftCoordinate - a.leftCoordinate) + (b.topCoordinate - a.topCoordinate) * (b.topCoordinate - a.topCoordinate)) as distanceTraveled,
+       abs(sqrt((b.leftCoordinate - a.leftCoordinate) * (b.leftCoordinate - a.leftCoordinate) + (b.topCoordinate - a.topCoordinate) * (b.topCoordinate - a.topCoordinate)) / (b.gameTime - a.gameTime) * 100) as speed
+FROM player_position a
+         RIGHT JOIN player_position b
+                    on a.playerId = b.playerId
+where a.recordId = b.recordId - 100
+  and a.gameId = b.gameId
+```
 
 # Visualize with Streamlit
 
