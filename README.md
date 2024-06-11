@@ -1,4 +1,4 @@
-# Gaming-Analytics-With-Confluent-And-AWS
+# Gaming Analytics with Confluent, StarTree and AWS
 Create a data streaming pipeline for a video game simulation. Experience real time data processing for better and faster decision-making. In this workshop, you will run a local client that will simulate player movements. Player coordinates as well as player collisions (labelled as interactions) are sent to Confluent Cloud for processing. You will create real time transformations to identify cheaters, track hot spots on the map, etc.
 
 # Requirements
