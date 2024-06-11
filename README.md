@@ -1,10 +1,6 @@
 # Gaming-Analytics-With-Confluent-And-AWS
-Create a data streaming pipeline for a video game simulation. Experience real time data processing for better and faster decision making. In this workshop, you will run a local client that will simulate player movements. Player coordinates as well as player collisions (labelled as interactions) are sent to Confluent Cloud for processing. You will also deploy a MongoDB Atlas database that contains static player information and source its data using a Confluent source connector. With data coming in from both the local client and MongoDB Atlas, you will create real time transformations to identify cheaters, track hot spots on the map, etc.
+Create a data streaming pipeline for a video game simulation. Experience real time data processing for better and faster decision-making. In this workshop, you will run a local client that will simulate player movements. Player coordinates as well as player collisions (labelled as interactions) are sent to Confluent Cloud for processing. You will create real time transformations to identify cheaters, track hot spots on the map, etc.
 
-
-<br>
-
-![Architecture Diagram](assets/architecture.png)
 # Requirements
 1. Confluent Cloud account
 1. StarTree Cloud account
@@ -16,7 +12,6 @@ Create a data streaming pipeline for a video game simulation. Experience real ti
 2. Create a new environment
 3. Create a new Standard cluster. Select us-east-2 for the region.
 4. Create API Keys (also known as Kafka API Keys within Confluent Cloud). These will allow the local client to interact (sink and source data) with Confluent Cloud.
-5. Create a ksqlDB application. We will use this later for real-time transformations on the data that comes in.
 6. Create a new topic called `interactions`. Leave the partitions set to 6. This will be one of the places where data from the local client will land.
 7. Create a new topic called `player-position`. Leave the partitions set to 6. This will be one of the places where data from the local client will land.
 
@@ -105,18 +100,17 @@ With data flowing from the local game client into the Confluent Cloud, we will n
    ```
 
 # Visualize with Streamlit
-1. Use the screenshots below to create the visuals for yourself.
-    
-    **Initial Spawn Visual.** This answers the question "Where are most players spawning at the beginning of the game? Do we need to consider a different distribution"
-    ![Intial Spawn Visual](assets/initial-spawn.png)
 
-    **Average Speed Visual.** This helps identify if there are players moving faster than others (and indicator of cheating). As you can see in this visual and our dataset, Player 0 is moving 6x faster than other players.
-    ![Average Speed Visual](assets/average-speed.png)
+**Initial Spawn Visual.** This answers the question "Where are most players spawning at the beginning of the game? Do we need to consider a different distribution"
+![Intial Spawn Visual](assets/initial-spawn.png)
 
-    **Most Interactions.** This answers the question "Which players interact the most with other players?". This can help create player "style profiles" where in developers can understand players based on their style of play. It can also be a core component in matchmaking. The more interactions, the better the player. Players with interactions much higher than those in the same match problably need to be allocated to a batch of players that are on the same level.
-    ![Most Interactions](assets/most-ineractions.png)
+**Average Speed Visual.** This helps identify if there are players moving faster than others (and indicator of cheating). As you can see in this visual and our dataset, Player 0 is moving 6x faster than other players.
+![Average Speed Visual](assets/average-speed.png)
 
-    **Locations Visual.** This answers the question "Where are most player throughout the game?" For example, we can see that towards the end game of the match, most players were in the Business District and Other. Alternatively, at the beginning of the match, most players were at Amiko Greens.
+**Most Interactions.** This answers the question "Which players interact the most with other players?". This can help create player "style profiles" where in developers can understand players based on their style of play. It can also be a core component in matchmaking. The more interactions, the better the player. Players with interactions much higher than those in the same match problably need to be allocated to a batch of players that are on the same level.
+![Most Interactions](assets/most-ineractions.png)
 
-    ![Location Visual](assets/player-time-by-location.png)
+**Locations Visual.** This answers the question "Where are most player throughout the game?" For example, we can see that towards the end game of the match, most players were in the Business District and Other. Alternatively, at the beginning of the match, most players were at Amiko Greens.
+
+![Location Visual](assets/player-time-by-location.png)
     
